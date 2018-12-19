@@ -2,13 +2,19 @@
 #pragma once
 ////////////////////////////////////////////////////////////////////////////////
 
-#define ICN_PIXEL  (0x100)
+#define ICN_PIXEL   (0x100)
+#define ICN_SCROLL  (0x101)
 
 struct NMIMAGEPIXEL
 {
 	NMHDR    nmh;  // Contains information about a notification message.
 	int      x, y;
 	COLORREF rgb;  // The COLORREF value is used to specify an RGB color.
+};
+struct NMIMAGESCROLL
+{
+	NMHDR    nmh;  // Contains information about a notification message.
+	POINT    pt;
 };
 
 template <class T>
@@ -123,6 +129,17 @@ public:
 
 //------------------------------------------------------------------------------
 // Overrideables
+	void DoScroll(int nType, int nScrollCode, int& cxyOffset, int cxySizeAll, int cxySizePage, int cxySizeLine)
+	{
+		CScrollImpl<T>::DoScroll(nType, nScrollCode, cxyOffset, cxySizeAll, cxySizePage, cxySizeLine);
+		NMIMAGESCROLL nm;
+		nm.nmh.code = ICN_SCROLL;
+		nm.nmh.idFrom = GetDlgCtrlID();
+		nm.nmh.hwndFrom = m_hWnd;
+		GetScrollOffset(nm.pt);
+		SendMessage(GetParent(), WM_NOTIFY, nm.nmh.idFrom, (LPARAM)&nm);
+	}
+
 	void DoPaint(CDCHandle dc)
 	{
 		if( !is_image_null() ) {
@@ -131,6 +148,19 @@ public:
 			dc.SetStretchBltMode(nOldMode);
 		}
 	}
+};
+
+class ImageCtrl : public ImageCtrlImpl<ImageCtrl>
+{
+private:
+	typedef ImageCtrlImpl<ImageCtrl>  baseClass;
+
+public:
+//------------------------------------------------------------------------------
+//message handler
+	BEGIN_MSG_MAP(ImageCtrl)
+		CHAIN_MSG_MAP(baseClass)
+	END_MSG_MAP()
 };
 
 ////////////////////////////////////////////////////////////////////////////////
