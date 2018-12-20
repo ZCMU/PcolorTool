@@ -7,7 +7,6 @@
 #include "ui/ImageCtrl.h"
 
 #include "data/PcData.h"
-
 #include "data/PcAlg.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,6 +85,13 @@ public:
 		COMMAND_HANDLER(IDC_BTN_LOAD_IMAGE, BN_CLICKED, OnBtnLoadImageClicked)
 		NOTIFY_HANDLER(IDC_PIC_ORIGINAL, ICN_SCROLL, OnImageOriginalScroll)
 		NOTIFY_HANDLER(IDC_PIC_PROCESS, ICN_SCROLL, OnImageProcessScroll)
+		COMMAND_HANDLER(IDC_BTN_LOAD_CFG, BN_CLICKED, OnBtnLoadCfgClicked)
+		COMMAND_HANDLER(IDC_BTN_SAVE_CFG, BN_CLICKED, OnBtnSaveCfgClicked)
+		NOTIFY_HANDLER(IDC_LIST_LUT, NM_CLICK, OnListLutClick)
+		NOTIFY_HANDLER(IDC_UPDOWN_GRAY, UDN_DELTAPOS, OnUpdGrayDelta)
+		NOTIFY_HANDLER(IDC_UPDOWN_R, UDN_DELTAPOS, OnUpdRDelta)
+		NOTIFY_HANDLER(IDC_UPDOWN_G, UDN_DELTAPOS, OnUpdGDelta)
+		NOTIFY_HANDLER(IDC_UPDOWN_B, UDN_DELTAPOS, OnUpdBDelta)
 //------------------------------------------------------------------------------
 		REFLECT_NOTIFICATIONS()
 //------------------------------------------------------------------------------
@@ -160,8 +166,10 @@ public:
 						WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0,
 						IDC_BTN_SAVE_CFG);
 		m_listLut.Create(m_hWnd, rcDefault, NULL,
-						WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SINGLESEL | LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES, 0,
+						WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SINGLESEL, 0,
 						IDC_LIST_LUT);
+		m_listLut.SetExtendedListViewStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES,
+											LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 		m_listLut.InsertColumn(0, _T("Gray"), LVCFMT_LEFT, 50);
 		m_listLut.InsertColumn(1, _T("R"), LVCFMT_LEFT, 50);
 		m_listLut.InsertColumn(2, _T("G"), LVCFMT_LEFT, 50);
@@ -303,6 +311,186 @@ public:
 		NMIMAGESCROLL* pnm = (NMIMAGESCROLL*)pNMHDR;
 		m_imageCtrlOriginal.SetScrollOffset(pnm->pt);
 		return 0;
+	}
+	LRESULT OnBtnLoadCfgClicked(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		CFileDialog dlg(TRUE);
+		if( dlg.DoModal() == IDOK ) {
+			CWaitCursor wac;
+			PcCfg cfg;
+			if( !cfg.Load(dlg.m_szFileName) ) {
+				AtlMessageBox(NULL, _T("error load configuration"), _T("error"), MB_OK);
+				return 0;
+			}
+			m_cfg = std::move(cfg);
+			//ui
+			m_editGray.EnableWindow(FALSE);
+			m_updGray.EnableWindow(FALSE);
+			m_editR.EnableWindow(FALSE);
+			m_updR.EnableWindow(FALSE);
+			m_editG.EnableWindow(FALSE);
+			m_updG.EnableWindow(FALSE);
+			m_editB.EnableWindow(FALSE);
+			m_updB.EnableWindow(FALSE);
+			m_btnSaveCfg.EnableWindow(FALSE);
+			m_listLut.EnableWindow(TRUE);
+			m_listLut.DeleteAllItems();
+			CString str;
+			for( size_t i = 0; i < m_cfg.GetCount(); i ++ ) {
+				int r, g, b;
+				m_cfg.GetRgbAt(i, r, g, b);
+				m_listLut.InsertItem((int)i, _T(""));
+				str.Format(_T("%d"), m_cfg.GetGrayAt(i));
+				m_listLut.SetItemText((int)i, 0, str);
+				str.Format(_T("%d"), r);
+				m_listLut.SetItemText((int)i, 1, str);
+				str.Format(_T("%d"), g);
+				m_listLut.SetItemText((int)i, 2, str);
+				str.Format(_T("%d"), b);
+				m_listLut.SetItemText((int)i, 3, str);
+			}
+			generate_pseudo_color();
+		}
+		return 0;
+	}
+	LRESULT OnBtnSaveCfgClicked(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		CFileDialog dlg(FALSE);
+		if( dlg.DoModal() == IDOK ) {
+			CWaitCursor wac;
+			if( !m_cfg.Save(dlg.m_szFileName) ) {
+				AtlMessageBox(NULL, _T("error save configuration"), _T("error"), MB_OK);
+				return 0;
+			}
+			m_btnSaveCfg.EnableWindow(FALSE);
+		}
+		return 0;
+	}
+	LRESULT OnListLutClick(int idCtrl, LPNMHDR pNMHDR, BOOL& bHandled)
+	{
+		NMHDR* pnmh = (NMHDR*)pNMHDR;
+		int index = m_listLut.GetSelectedIndex();
+		//no selection
+		if( index < 0 ) {
+			m_editGray.EnableWindow(FALSE);
+			m_updGray.EnableWindow(FALSE);
+			m_editR.EnableWindow(FALSE);
+			m_updR.EnableWindow(FALSE);
+			m_editG.EnableWindow(FALSE);
+			m_updG.EnableWindow(FALSE);
+			m_editB.EnableWindow(FALSE);
+			m_updB.EnableWindow(FALSE);
+			return 0;
+		}
+		int gray, r, g, b;
+		gray = m_cfg.GetGrayAt(index);
+		m_cfg.GetRgbAt(index, r, g, b);
+		{
+			int gray1, gray2;
+			if( m_cfg.GetCount() == 1 ) {
+				gray1 = 0;
+				gray2 = 255;
+			}
+			else {
+				if( index == m_cfg.GetCount() - 1 ) {
+					gray1 = m_cfg.GetGrayAt(index - 1) + 1;
+					gray2 = 255;
+				}
+				else if( index == 0 ) {
+					gray1 = 0;
+					gray2 = m_cfg.GetGrayAt(index + 1) - 1;
+				}
+				else {
+					gray1 = m_cfg.GetGrayAt(index - 1) + 1;
+					gray2 = m_cfg.GetGrayAt(index + 1) - 1;
+				}
+			}
+			m_updGray.SetRange32(gray1, gray2);
+		} //end block
+		m_updGray.SetPos32(gray);
+		m_updR.SetPos32(r);
+		m_updG.SetPos32(g);
+		m_updB.SetPos32(b);
+		//ui
+		m_editGray.EnableWindow(TRUE);
+		m_updGray.EnableWindow(TRUE);
+		m_editR.EnableWindow(TRUE);
+		m_updR.EnableWindow(TRUE);
+		m_editG.EnableWindow(TRUE);
+		m_updG.EnableWindow(TRUE);
+		m_editB.EnableWindow(TRUE);
+		m_updB.EnableWindow(TRUE);
+		return 0;
+	}
+	LRESULT OnUpdGrayDelta(int idCtrl, LPNMHDR pNMHDR, BOOL& bHandled)
+	{
+		NMUPDOWN* pnm = (NMUPDOWN*)pNMHDR;
+		int v = calc_upd_value(pnm->iPos + pnm->iDelta, m_updGray);
+		int index = m_listLut.GetSelectedIndex();
+		ATLASSERT( index >= 0 );
+		adjust_value_ui(v, 0, index);
+		m_cfg.SetGrayAt(index, v);
+		generate_pseudo_color();
+		m_btnSaveCfg.EnableWindow(TRUE);
+		return 0;
+	}
+	LRESULT OnUpdRDelta(int idCtrl, LPNMHDR pNMHDR, BOOL& bHandled)
+	{
+		NMUPDOWN* pnm = (NMUPDOWN*)pNMHDR;
+		int v = calc_upd_value(pnm->iPos + pnm->iDelta, m_updR);
+		int index = m_listLut.GetSelectedIndex();
+		ATLASSERT( index >= 0 );
+		adjust_value_ui(v, 1, index);
+		m_cfg.SetRAt(index, v);
+		generate_pseudo_color();
+		m_btnSaveCfg.EnableWindow(TRUE);
+		return 0;
+	}
+	LRESULT OnUpdGDelta(int idCtrl, LPNMHDR pNMHDR, BOOL& bHandled)
+	{
+		NMUPDOWN* pnm = (NMUPDOWN*)pNMHDR;
+		int v = calc_upd_value(pnm->iPos + pnm->iDelta, m_updG);
+		int index = m_listLut.GetSelectedIndex();
+		ATLASSERT( index >= 0 );
+		adjust_value_ui(v, 2, index);
+		m_cfg.SetGAt(index, v);
+		generate_pseudo_color();
+		m_btnSaveCfg.EnableWindow(TRUE);
+		return 0;
+	}
+	LRESULT OnUpdBDelta(int idCtrl, LPNMHDR pNMHDR, BOOL& bHandled)
+	{
+		NMUPDOWN* pnm = (NMUPDOWN*)pNMHDR;
+		int v = calc_upd_value(pnm->iPos + pnm->iDelta, m_updB);
+		int index = m_listLut.GetSelectedIndex();
+		ATLASSERT( index >= 0 );
+		adjust_value_ui(v, 3, index);
+		m_cfg.SetBAt(index, v);
+		generate_pseudo_color();
+		m_btnSaveCfg.EnableWindow(TRUE);
+		return 0;
+	}
+
+private:
+	void generate_pseudo_color()
+	{
+		PcAlgHelper::PseudoColor(m_gData, m_cfg, m_cData);
+		ImageDataHelper::ColorDataToImage(m_cData, *m_spImgPro);
+		m_imageCtrlProcess.UpdateScroll();
+	}
+	int calc_upd_value(int v, CUpDownCtrl& upd)
+	{
+		int iMin, iMax;
+		upd.GetRange32(iMin, iMax);
+		if( v < iMin )  v = iMin;
+		if( v > iMax )  v = iMax;
+		return v;
+	}
+	void adjust_value_ui(int v, int iCol, int index)
+	{
+		CString str;
+		str.Format(_T("%d"), v);
+		m_listLut.SetItemText(index, iCol, str);
 	}
 	//--------------------------------------------------------------------------
 };

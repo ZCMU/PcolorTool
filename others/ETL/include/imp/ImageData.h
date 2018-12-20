@@ -24,7 +24,7 @@ public:
 		return m_buffer.empty();
 	}
 
-	BYTE* GetAddress() throw()
+	uchar* GetAddress() throw()
 	{
 		return m_buffer.data();
 	}
