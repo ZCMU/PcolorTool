@@ -18,6 +18,8 @@ public:
 
 	//--------------------------------------------------------------------------
 	enum { IDC_BTN_LOAD_IMAGE = 10,
+		IDC_TEXT_PIXEL,
+		IDC_BTN_SAVE_IMAGE,
 		IDC_PIC_ORIGINAL,
 		IDC_PIC_PROCESS,
 		IDC_TEXT_GRAY,
@@ -38,6 +40,8 @@ public:
 	};
 
 	CButton	       m_btnLoadImage;
+	CStatic        m_txtPixel;
+	CButton	       m_btnSaveImage;
 	ImageCtrl      m_imageCtrlOriginal;
 	ImageCtrl      m_imageCtrlProcess;
 	CStatic        m_txtGray;
@@ -83,6 +87,8 @@ public:
 		MESSAGE_HANDLER(WM_SIZE, OnSize)
 //------------------------------------------------------------------------------
 		COMMAND_HANDLER(IDC_BTN_LOAD_IMAGE, BN_CLICKED, OnBtnLoadImageClicked)
+		COMMAND_HANDLER(IDC_BTN_SAVE_IMAGE, BN_CLICKED, OnBtnSaveImageClicked)
+		NOTIFY_HANDLER(IDC_PIC_ORIGINAL, ICN_PIXEL, OnImageOriginalPixel)
 		NOTIFY_HANDLER(IDC_PIC_ORIGINAL, ICN_SCROLL, OnImageOriginalScroll)
 		NOTIFY_HANDLER(IDC_PIC_PROCESS, ICN_SCROLL, OnImageProcessScroll)
 		COMMAND_HANDLER(IDC_BTN_LOAD_CFG, BN_CLICKED, OnBtnLoadCfgClicked)
@@ -103,6 +109,12 @@ public:
 		m_btnLoadImage.Create(m_hWnd, rcDefault, _T("Load Image"),
 						WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0,
 						IDC_BTN_LOAD_IMAGE);
+		m_txtPixel.Create(m_hWnd, rcDefault, _T(""),
+						WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0,
+						IDC_TEXT_PIXEL);
+		m_btnSaveImage.Create(m_hWnd, rcDefault, _T("Save Image"),
+						WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0,
+						IDC_BTN_SAVE_IMAGE);
 		m_imageCtrlOriginal.Create(m_hWnd, rcDefault, NULL,
 						WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0,
 						IDC_PIC_ORIGINAL);
@@ -175,6 +187,7 @@ public:
 		m_listLut.InsertColumn(2, _T("G"), LVCFMT_LEFT, 50);
 		m_listLut.InsertColumn(3, _T("B"), LVCFMT_LEFT, 50);
 		//start state
+		m_btnSaveImage.EnableWindow(FALSE);
 		m_editGray.EnableWindow(FALSE);
 		m_updGray.EnableWindow(FALSE);
 		m_editR.EnableWindow(FALSE);
@@ -219,6 +232,11 @@ public:
 			int x = 10;
 			int y = 10;
 			m_btnLoadImage.SetWindowPos(NULL, x, y, 80, 40, SWP_NOACTIVATE | SWP_NOZORDER);
+			x += (80 + 10);
+			m_txtPixel.SetWindowPos(NULL, x, y, 100, 40, SWP_NOACTIVATE | SWP_NOZORDER);
+			x += (100 + 10);
+			m_btnSaveImage.SetWindowPos(NULL, x, y, 80, 40, SWP_NOACTIVATE | SWP_NOZORDER);
+			x = 10;
 			y += (40 + 10);
 			int wi = (w - 10 * 4) / 3;
 			m_imageCtrlOriginal.SetWindowPos(NULL, x, y, wi, h - y - 10, SWP_NOACTIVATE | SWP_NOZORDER);
@@ -285,6 +303,7 @@ public:
 			m_imageCtrlOriginal.UpdateScroll();
 			m_imageCtrlProcess.UpdateScroll();
 			//state
+			m_btnSaveImage.EnableWindow(FALSE);
 			m_editGray.EnableWindow(FALSE);
 			m_updGray.EnableWindow(FALSE);
 			m_editR.EnableWindow(FALSE);
@@ -298,6 +317,37 @@ public:
 			m_listLut.EnableWindow(FALSE);
 			m_listLut.DeleteAllItems();
 		}
+		return 0;
+	}
+	LRESULT OnBtnSaveImageClicked(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		if( m_spImgPro.get() == NULL || m_spImgPro->IsNull() )
+			return 0;
+		CFileDialog dlg(FALSE);
+		if( dlg.DoModal() == IDOK ) {
+			CWaitCursor wac;
+			if( FAILED(m_spImgPro->Save(dlg.m_szFileName, Gdiplus::ImageFormatBMP)) ) {
+				AtlMessageBox(NULL, _T("error save image"), _T("error"), MB_OK);
+				return 0;
+			}
+			m_btnSaveImage.EnableWindow(FALSE);
+		}
+		return 0;
+	}
+	LRESULT OnImageOriginalPixel(int idCtrl, LPNMHDR pNMHDR, BOOL& bHandled)
+	{
+		NMIMAGEPIXEL* pnm = (NMIMAGEPIXEL*)pNMHDR;
+		if( pnm->rgb == CLR_INVALID ) {
+			m_txtPixel.SetWindowText(_T(""));
+			return 0;
+		}
+		CString str;
+		COLORREF clr = m_spImgPro->GetPixel(pnm->x, pnm->y);
+		str.Format(_T("%u\r\n%u %u %u"),
+				(UINT)GetRValue(pnm->rgb),
+				(UINT)GetRValue(clr), (UINT)GetGValue(clr), (UINT)GetBValue(clr)
+				);
+		m_txtPixel.SetWindowText(str);
 		return 0;
 	}
 	LRESULT OnImageOriginalScroll(int idCtrl, LPNMHDR pNMHDR, BOOL& bHandled)
@@ -477,6 +527,7 @@ private:
 		PcAlgHelper::PseudoColor(m_gData, m_cfg, m_cData);
 		ImageDataHelper::ColorDataToImage(m_cData, *m_spImgPro);
 		m_imageCtrlProcess.UpdateScroll();
+		m_btnSaveImage.EnableWindow(TRUE);
 	}
 	int calc_upd_value(int v, CUpDownCtrl& upd)
 	{
