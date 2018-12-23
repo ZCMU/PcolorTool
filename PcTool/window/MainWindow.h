@@ -238,7 +238,7 @@ public:
 			m_btnSaveImage.SetWindowPos(NULL, x, y, 80, 40, SWP_NOACTIVATE | SWP_NOZORDER);
 			x = 10;
 			y += (40 + 10);
-			int wi = (w - 10 * 4) / 3;
+			int wi = (w - 10 * 4 - 230) / 2;
 			m_imageCtrlOriginal.SetWindowPos(NULL, x, y, wi, h - y - 10, SWP_NOACTIVATE | SWP_NOZORDER);
 			m_imageCtrlOriginal.UpdateScroll();
 			m_imageCtrlProcess.SetWindowPos(NULL, x + wi + 10, y, wi, h - y - 10, SWP_NOACTIVATE | SWP_NOZORDER);
