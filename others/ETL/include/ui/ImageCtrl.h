@@ -163,4 +163,75 @@ public:
 	END_MSG_MAP()
 };
 
+template <class T>
+class ATL_NO_VTABLE NoFlickerImageCtrlImpl : public ImageCtrlImpl<T>
+{
+private:
+	typedef ImageCtrlImpl<T>  baseClass;
+
+public:
+//------------------------------------------------------------------------------
+//message handler
+	BEGIN_MSG_MAP(NoFlickerImageCtrlImpl)
+		MESSAGE_HANDLER(WM_ERASEBKGND, OnEraseBkgnd)
+		CHAIN_MSG_MAP(baseClass)
+	END_MSG_MAP()
+
+	LRESULT OnEraseBkgnd(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		CDCHandle dc((HDC)wParam);
+		bHandled = TRUE;
+		return 1;
+	}
+
+//------------------------------------------------------------------------------
+//overriders
+	void DoPaint(CDCHandle dc)
+	{
+		POINT pt;
+		GetScrollOffset(pt);
+		_WTYPES_NS::CRect rcClient;
+		GetClientRect(&rcClient);
+		rcClient.OffsetRect(pt);
+		_WTYPES_NS::CRect rect(0, 0, 1, 1);
+		if( !is_image_null() ) {
+			rect.right = m_spImage->GetWidth();
+			rect.bottom = m_spImage->GetHeight();
+		}
+		CMemoryDC mdc(dc, rcClient);
+		//background
+		CBrush bsh;
+		bsh.CreateSolidBrush(RGB(64, 64, 64));
+		mdc.FillRect(&rcClient, bsh);
+		//image
+		if( !is_image_null() ) {
+			int nOldMode = mdc.SetStretchBltMode(COLORONCOLOR);
+			m_spImage->Draw(mdc, rect);
+			mdc.SetStretchBltMode(nOldMode);
+		}
+		//custom
+		T* pT = static_cast<T*>(this);
+		pT->DoImageCtrlPaint(mdc, rcClient);
+	}
+
+//------------------------------------------------------------------------------
+//overrideables
+	void DoImageCtrlPaint(CMemoryDC& mdc, const _WTYPES_NS::CRect& rcClient)
+	{
+	}
+};
+
+class NoFlickerImageCtrl : public NoFlickerImageCtrlImpl<NoFlickerImageCtrl>
+{
+private:
+	typedef NoFlickerImageCtrlImpl<NoFlickerImageCtrl>  baseClass;
+
+public:
+//------------------------------------------------------------------------------
+//message handler
+	BEGIN_MSG_MAP(NoFlickerImageCtrl)
+		CHAIN_MSG_MAP(baseClass)
+	END_MSG_MAP()
+};
+
 ////////////////////////////////////////////////////////////////////////////////
