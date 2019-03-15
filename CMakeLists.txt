@@ -2,6 +2,9 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 INCLUDE("others/ETL/include/msvc.cmk")
 
 PROJECT(PcolorTool)
+
+SET_ETL_PATH("${PROJECT_SOURCE_DIR}/others/ETL")
+
 ADD_SUBDIRECTORY(PcTool PcTool)
 
 #pack
